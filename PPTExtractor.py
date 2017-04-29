@@ -124,7 +124,7 @@ class PowerPointFormat(object):
         """
         Retorna lista de imágenes contenidas en el archivo.
         """
-        return self._files.keys()
+        return list(self._files.keys())
         
     def __len__(self):
         return len(self._files)
@@ -177,7 +177,7 @@ class PPT(PowerPointFormat):
             stream.seek(recLen, 1)
 
             if DEBUG:
-                print "%X %X %sb" % (recType, recInstance, recLen)
+                print("%X %X %sb" % (recType, recInstance, recLen))
             
             extrabytes, ext = formats.get((recType, recInstance))
             
@@ -294,5 +294,5 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         PPTExtractor(sys.argv[1]).extractall()
     else:
-        print "Uso: %s PowerPointFile" % __file__
+        print("Uso: %s PowerPointFile" % __file__)
     

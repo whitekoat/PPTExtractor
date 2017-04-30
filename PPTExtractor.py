@@ -155,22 +155,23 @@ class PPT(PowerPointFormat):
                 break
 
             # cabecera
-            recInstance, recType, recLen = struct.unpack_from("<HHL", header)
+            rec_instance, rec_type, rec_len = struct.unpack_from("<HHL",
+                                                                 header)
 
             # mover a siguiente cabecera
-            stream.seek(recLen, 1)
+            stream.seek(rec_len, 1)
 
             if DEBUG:
-                print("%X %X %sb" % (recType, recInstance, recLen))
+                print("%X %X %sb" % (rec_type, rec_instance, rec_len))
 
-            extrabytes, ext = formats.get((recType, recInstance))
+            extrabytes, ext = formats.get((rec_type, rec_instance))
 
             # Eliminar bytes extra
-            recLen -= extrabytes
+            rec_len -= extrabytes
             offset += extrabytes
 
-            self._files.append((offset, recLen))
-            offset += recLen
+            self._files.append((offset, rec_len))
+            offset += rec_len
 
             n += 1
 
@@ -222,7 +223,6 @@ class PPTX(PowerPointFormat):
 
         for file in self.__zipfile.namelist():
             path, name = os.path.split(file)
-            name, ext = os.path.splitext(name)
 
             # los archivos multimedia se guardan en ppt/media
             if path == "ppt/media":

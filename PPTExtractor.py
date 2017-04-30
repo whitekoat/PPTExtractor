@@ -1,4 +1,4 @@
-﻿#-*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Extract images from PowerPoint files
 
@@ -12,27 +12,17 @@ Usage
 
 By default images are saved in current directory:
 
-    ppt = PPTExtractor("some/PowerPointFile")
+    ppt = PPTExtractor(file)
 
     # found images
     len(ppt)
 
-    # image list
-    images = ppt.namelist()
-
     # extract image
     ppt.extract(images[0])
-    
-    # save image with different name
-    ppt.extract(images[0], "nuevo-nombre.png")
 
     # extract all images
     ppt.extractall()
-    
-Save images in a diferent directory:
-    
-    ppt.extract("image.png", path="/another/directory")
-    ppt.extractall(path="/another/directory")
+
 """
 # Copyright (c) 2010 Jhonathan Salguero Villa (http://github.com/sney2002)
 #
@@ -54,11 +44,12 @@ Save images in a diferent directory:
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import OleFileIO_PL as OleFile
-import zipfile
-import struct
 import os
+import struct
+import zipfile
+from io import BytesIO
 
+import OleFileIO_PL as OleFile
 
 DEBUG = False
 CWD = '.'
@@ -91,47 +82,39 @@ formats = {
     (0xF029, 0x6E50): (33, ".tiff")
 }
 
+
 class InvalidFormat(Exception):
     pass
 
 
 class PowerPointFormat(object):
-    def __init__(self, filename):
+    def __init__(self, file):
         """
         filename:   archivo a abrir
         """
-        self._files = {}
-        
-        # nombre base de imágenes
-        self.basename = os.path.splitext(os.path.basename(filename))[0]
-        
-        self._process(filename)
+        self._files = []
 
-    def extract(self, name, newname="", path=CWD):
+        self._process(file)
+
+    def extract(self, index):
         """
         Extrae imagen en directorio especificado.
         """
-        self._extract(name, newname=newname, path=path)
-        
-    def extractall(self, path=CWD):
+        return self._extract(index)
+
+    def extractall(self):
         """
         Extrae todas las imágenes en directorio especificado.
         """
-        for img in self._files:
-            self.extract(img, path=path)
-            
-    def namelist(self):
-        """
-        Retorna lista de imágenes contenidas en el archivo.
-        """
-        return list(self._files.keys())
-        
+        for index in range(len(self._files)):
+            yield self.extract(index)
+
     def __len__(self):
         return len(self._files)
-        
+
     def __str__(self):
         return "<PowerPoint file with %s images>" % len(self)
-    
+
     __repr__ = __str__
 
 
@@ -143,20 +126,20 @@ class PPT(PowerPointFormat):
     headerlen = struct.calcsize('<HHL')
 
     @classmethod
-    def is_valid_format(cls, filename):
-        return OleFile.isOleFile(filename)
-    
-    def _process(self, filename):
+    def is_valid_format(cls, file):
+        return OleFile.isOleFile(file)
+
+    def _process(self, file):
         """
         Busca imágenes dentro de stream y guarda referencia a su ubicación.
         """
-        olefile = OleFile.OleFileIO(filename)
-        
+        olefile = OleFile.OleFileIO(file)
+
         # Al igual que en pptx esto no es un error
         if not olefile.exists("Pictures"):
             return
-            #raise IOError("Pictures stream not found")
-        
+            # raise IOError("Pictures stream not found")
+
         self.__stream = olefile.openstream("Pictures")
 
         stream = self.__stream
@@ -168,8 +151,9 @@ class PPT(PowerPointFormat):
             header = stream.read(self.headerlen)
             offset += self.headerlen
 
-            if not header: break
-            
+            if not header:
+                break
+
             # cabecera
             recInstance, recType, recLen = struct.unpack_from("<HHL", header)
 
@@ -178,121 +162,102 @@ class PPT(PowerPointFormat):
 
             if DEBUG:
                 print("%X %X %sb" % (recType, recInstance, recLen))
-            
+
             extrabytes, ext = formats.get((recType, recInstance))
-            
+
             # Eliminar bytes extra
             recLen -= extrabytes
             offset += extrabytes
-            
-            # Nombre de Imagen
-            filename = "{0}{1}{2}".format(self.basename, n, ext)
-            
-            self._files[filename] = (offset, recLen)
+
+            self._files.append((offset, recLen))
             offset += recLen
-            
+
             n += 1
 
-    def _extract(self, name, newname="", path=CWD):
+    def _extract(self, index):
         """
         Extrae imagen en el directorio actual (path).
         """
-        filename = newname or name
-        
-        if not name in self._files:
+        if index >= len(self._files):
             raise IOError("No such file")
-        
-        offset, size = self._files[name]
-        
-        # dirección de destino completa
-        filepath = os.path.join(path, filename)
-        
+
+        offset, size = self._files[index]
+
         total = 0
-        
+
         self.__stream.seek(offset, 0)
 
-        with open(filepath, "wb") as output:
-            while (total + CHUNK) < size:
-                data = self.__stream.read(CHUNK)
-                
-                if not data: break
-                
-                output.write(data)
-                total += len(data)
-                
-            if total < size:
-                data = self.__stream.read(size - total)
-                output.write(data)
+        output = BytesIO()
+        while (total + CHUNK) < size:
+            data = self.__stream.read(CHUNK)
+
+            if not data:
+                break
+
+            output.write(data)
+            total += len(data)
+
+        if total < size:
+            data = self.__stream.read(size - total)
+            output.write(data)
+        return output
+
 
 class PPTX(PowerPointFormat):
     """
     Extrae imágenes de archivos PowerPoint +2007
     """
+
     @classmethod
-    def is_valid_format(cls, filename):
-        return zipfile.is_zipfile(filename)
-    
-    def _process(self, filename):
+    def is_valid_format(cls, file):
+        return zipfile.is_zipfile(file)
+
+    def _process(self, file):
         """
-        Busca imágenes dentro de archivo zip y guarda referencia a su ubicación.
+        Busca imágenes dentro de archivo zip y guarda referencia a su ubicación
         """
-        self.__zipfile = zipfile.ZipFile(filename)
-        
+        self.__zipfile = zipfile.ZipFile(file)
+
         n = 1
 
         for file in self.__zipfile.namelist():
             path, name = os.path.split(file)
             name, ext = os.path.splitext(name)
-            
+
             # los archivos multimedia se guardan en ppt/media
             if path == "ppt/media":
-                filename = "{0}{1}{2}".format(self.basename, n, ext)
-                
                 # guardar path de archivo dentro del zip
-                self._files[filename] = file
-                
+                self._files[n] = file
+
                 n += 1
-                
-    def _extract(self, name, newname="", path=CWD):
+
+    def _extract(self, index):
         """
         Extrae imagen en el directorio actual (path).
         """
-        filename = newname or name
-        
-        if not name in self._files:
+        if index >= len(self._files):
             raise IOError("No such file")
-        
-        # dirección de destino completa
-        filepath = os.path.join(path, filename)
-        
+
         total = 0
-        
+
         # extraer archivo
-        file = self.__zipfile.open(self._files[name])
-        
-        with open(filepath, "wb") as output:
-            while True:
-                data = file.read(CHUNK)
-                
-                if not data: break
-                
-                output.write(data)
-                total += len(data)
+        file = self.__zipfile.open(self._files[index])
+
+        output = BytesIO()
+        while True:
+            data = file.read(CHUNK)
+
+            if not data:
+                break
+
+            output.write(data)
+            total += len(data)
+        return output
 
 
-def PPTExtractor(filename):
+def PPTExtractor(file):
     # Identificar tipo de archivo (pps, ppt, pptx) e instanciar clase adecuada
     for cls in PowerPointFormat.__subclasses__():
-        if cls.is_valid_format(filename):
-            return cls(filename)
-    raise InvalidFormat("{0} is not a PowerPoint file".format(filename))
-
-
-if __name__ == '__main__':
-    import sys
-    
-    if len(sys.argv) > 1:
-        PPTExtractor(sys.argv[1]).extractall()
-    else:
-        print("Uso: %s PowerPointFile" % __file__)
-    
+        if cls.is_valid_format(file):
+            return cls(file)
+    raise InvalidFormat("{0} is not a PowerPoint file".format(file))

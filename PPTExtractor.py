@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Extract images from PowerPoint files
 
@@ -143,8 +143,6 @@ class PPT(PowerPointFormat):
 
         stream = self.__stream
         offset = 0
-        # cantidad de imágenes encontradas
-        n = 1
 
         while True:
             header = stream.read(self.headerlen)
@@ -171,8 +169,6 @@ class PPT(PowerPointFormat):
 
             self._files.append((offset, rec_len))
             offset += rec_len
-
-            n += 1
 
     def _extract(self, index):
         """
@@ -218,17 +214,13 @@ class PPTX(PowerPointFormat):
         """
         self.__zipfile = zipfile.ZipFile(file)
 
-        n = 1
-
         for file in self.__zipfile.namelist():
             path, name = os.path.split(file)
 
             # los archivos multimedia se guardan en ppt/media
             if path == "ppt/media":
                 # guardar path de archivo dentro del zip
-                self._files[n] = file
-
-                n += 1
+                self._files.append(file)
 
     def _extract(self, index):
         """

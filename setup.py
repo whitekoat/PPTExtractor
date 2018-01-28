@@ -8,11 +8,11 @@ with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
 
 requires = [
-    'olefile==0.45.1'
+    'olefile == 0.44'
     ]
 
 setup(name='PPTExtractor',
-      version='0.0.2',
+      version='0.0.3',
       py_modules=['PPTExtractor'],
       install_requires=requires,
       )

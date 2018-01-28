@@ -49,7 +49,7 @@ import struct
 import zipfile
 from io import BytesIO
 
-import OleFileIO_PL as OleFile
+import olefile as OleFile
 
 DEBUG = False
 CHUNK = 1024 * 64

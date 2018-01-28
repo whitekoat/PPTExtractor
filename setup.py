@@ -8,7 +8,7 @@ with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
 
 requires = [
-    'olefile'
+    'olefile==0.45.1'
     ]
 
 setup(name='PPTExtractor',
